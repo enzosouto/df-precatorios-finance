@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/* Ensure comfortable minimum tap targets everywhere by default. */
+button,
+a,
+input,
+select,
+textarea {
+  font-family: inherit;
+}

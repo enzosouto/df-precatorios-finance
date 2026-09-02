@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TransactionType {
+  RECEITA
+  DESPESA
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  categories   Category[]
+  transactions Transaction[]
+  precatorios  Precatorio[]
+
+  @@map("users")
+}
+
+model Category {
+  id        String           @id @default(uuid())
+  name      String
+  type      TransactionType
+  userId    String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, name, type])
+  @@index([userId])
+  @@map("categories")
+}
+
+model Transaction {
+  id              String           @id @default(uuid())
+  userId          String
+  categoryId      String
+  type            TransactionType
+  amount          Decimal          @db.Decimal(14, 2)
+  description     String
+  clientName      String?          @db.VarChar(200)
+  transactionDate DateTime         @db.Date
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([transactionDate])
+  @@index([userId])
+  @@index([categoryId])
+  @@index([type])
+  @@index([deletedAt])
+  @@index([clientName])
+  @@index([userId, deletedAt, transactionDate])
+  @@map("transactions")
+}
+
+model Precatorio {
+  id              String    @id @default(uuid())
+  userId          String
+  cedente         String
+  valorOriginal   Decimal   @db.Decimal(14, 2)
+  valorAtualizado Decimal   @db.Decimal(14, 2)
+  diferenca       Decimal   @db.Decimal(14, 2)
+  valorPago       Decimal?  @db.Decimal(14, 2)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([deletedAt])
+  @@index([cedente])
+  @@index([userId, deletedAt])
+  @@map("precatorios")
+}
