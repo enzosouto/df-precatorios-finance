@@ -1,6 +1,7 @@
-import type { Prisma, TransactionType } from '@prisma/client';
+import type { Prisma, Socio, TransactionType } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { prisma } from '../lib/prisma';
-import { badRequest, notFound } from '../lib/errors';
+import { notFound } from '../lib/errors';
 import { formatMoney, toDecimal } from '../lib/money';
 import { formatDateOnly, parseDateOnly } from '../lib/dateOnly';
 import { assertCategoryCompatible } from './categories.service';
@@ -12,6 +13,7 @@ export interface TransactionDto {
   amount: string;
   description: string;
   clientName: string | null;
+  socios: Socio[];
   category: { id: string; name: string };
   transactionDate: string;
   createdAt: string;
@@ -27,6 +29,7 @@ function toDto(transaction: TransactionWithCategory): TransactionDto {
     amount: formatMoney(transaction.amount),
     description: transaction.description,
     clientName: transaction.clientName,
+    socios: transaction.socios,
     category: { id: transaction.category.id, name: transaction.category.name },
     transactionDate: formatDateOnly(transaction.transactionDate),
     createdAt: transaction.createdAt.toISOString(),
@@ -41,17 +44,17 @@ function normalizeClientName(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** Enforces: clientName is required (non-empty) for both RECEITA and DESPESA. */
-function assertClientNameValid(clientName: string | null): void {
-  if (!clientName) {
-    throw badRequest('Informe o cliente/empresa.');
-  }
+
+export interface TransactionTotals {
+  receitas: string;
+  despesas: string;
+  saldo: string;
 }
 
 export async function listTransactions(
   userId: string,
   query: ListTransactionsQuery
-): Promise<{ items: TransactionDto[]; total: number }> {
+): Promise<{ items: TransactionDto[]; total: number; totals: TransactionTotals }> {
   const where: Prisma.TransactionWhereInput = {
     userId,
     deletedAt: null,
@@ -76,6 +79,10 @@ export async function listTransactions(
     where.clientName = { contains: query.clientName, mode: 'insensitive' };
   }
 
+  if (query.socio) {
+    where.socios = { has: query.socio };
+  }
+
   if (query.search) {
     where.OR = [
       { description: { contains: query.search, mode: 'insensitive' } },
@@ -83,7 +90,7 @@ export async function listTransactions(
     ];
   }
 
-  const [items, total] = await Promise.all([
+  const [items, total, allMatching] = await Promise.all([
     prisma.transaction.findMany({
       where,
       include: { category: true },
@@ -92,9 +99,30 @@ export async function listTransactions(
       take: query.pageSize,
     }),
     prisma.transaction.count({ where }),
+    prisma.transaction.findMany({ where, select: { type: true, amount: true, socios: true } }),
   ]);
 
-  return { items: items.map(toDto), total };
+  const totalsAcc = allMatching.reduce(
+    (acc, row) => {
+      // Quando filtrado por sócio, cada movimentação contribui só com a parte dele (valor ÷ nº de sócios).
+      const amount = query.socio ? new Decimal(row.amount).div(row.socios.length) : new Decimal(row.amount);
+      if (row.type === 'RECEITA') {
+        acc.receitas = acc.receitas.plus(amount);
+      } else {
+        acc.despesas = acc.despesas.plus(amount);
+      }
+      return acc;
+    },
+    { receitas: new Decimal(0), despesas: new Decimal(0) }
+  );
+
+  const totals: TransactionTotals = {
+    receitas: formatMoney(totalsAcc.receitas),
+    despesas: formatMoney(totalsAcc.despesas),
+    saldo: formatMoney(totalsAcc.receitas.minus(totalsAcc.despesas)),
+  };
+
+  return { items: items.map(toDto), total, totals };
 }
 
 export async function getTransactionById(userId: string, id: string): Promise<TransactionDto> {
@@ -117,7 +145,6 @@ export async function createTransaction(
   await assertCategoryCompatible(userId, input.categoryId, input.type);
 
   const clientName = normalizeClientName(input.clientName);
-  assertClientNameValid(clientName);
 
   const created = await prisma.transaction.create({
     data: {
@@ -127,6 +154,7 @@ export async function createTransaction(
       amount: toDecimal(input.amount),
       description: input.description,
       clientName,
+      socios: input.socios,
       transactionDate: parseDateOnly(input.transactionDate),
     },
     include: { category: true },
@@ -154,8 +182,6 @@ export async function updateTransaction(
   const resultingClientName =
     input.clientName !== undefined ? normalizeClientName(input.clientName) : existing.clientName;
 
-  assertClientNameValid(resultingClientName);
-
   const updated = await prisma.transaction.update({
     where: { id },
     data: {
@@ -164,6 +190,7 @@ export async function updateTransaction(
       amount: input.amount !== undefined ? toDecimal(input.amount) : undefined,
       description: input.description,
       clientName: resultingClientName,
+      socios: input.socios,
       transactionDate: input.transactionDate ? parseDateOnly(input.transactionDate) : undefined,
     },
     include: { category: true },

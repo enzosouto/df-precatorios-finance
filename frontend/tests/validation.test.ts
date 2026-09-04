@@ -10,6 +10,7 @@ function baseForm(overrides: Partial<TransactionFormInput> = {}): TransactionFor
     clienteNome: 'Empresa XYZ Ltda',
     categoriaId: 'cat-1',
     data: '2026-09-01',
+    socios: ['CHIQUINHO'],
     ...overrides,
   }
 }
@@ -61,9 +62,8 @@ describe('validateTransactionForm', () => {
     expect(validateTransactionForm(baseForm({ descricao: '  ' })).descricao).toBeDefined()
   })
 
-  it('requires clienteNome regardless of tipo', () => {
-    expect(validateTransactionForm(baseForm({ tipo: 'RECEITA', clienteNome: '' })).clienteNome).toBeDefined()
-    expect(validateTransactionForm(baseForm({ tipo: 'DESPESA', clienteNome: '' })).clienteNome).toBeDefined()
+  it('allows a blank clienteNome (cliente é opcional)', () => {
+    expect(validateTransactionForm(baseForm({ clienteNome: '' })).clienteNome).toBeUndefined()
   })
 
   it('requires categoriaId', () => {
@@ -74,26 +74,33 @@ describe('validateTransactionForm', () => {
     expect(validateTransactionForm(baseForm({ data: '' })).data).toBeDefined()
     expect(validateTransactionForm(baseForm({ data: '2026-13-40' })).data).toBeDefined()
   })
+
+  it('requires at least one sócio', () => {
+    expect(validateTransactionForm(baseForm({ socios: [] })).socios).toBeDefined()
+  })
 })
 
 function basePrecatorioForm(overrides: Partial<PrecatorioFormInput> = {}): PrecatorioFormInput {
   return {
     cedente: 'Empresa XYZ Ltda',
-    valorOriginal: '1.000,00',
     valorAtualizado: '1.500,00',
-    valorPago: '',
+    valorVendido: '',
+    valorPago: '500,00',
+    comissoes: [],
+    tipoDocumento: '',
+    numeroDocumento: '',
+    livro: '',
+    folha: '',
+    origem: 'GDF',
+    origemOutro: '',
+    comprador: '',
     ...overrides,
   }
 }
 
 describe('validatePrecatorioForm', () => {
-  it('passes for a fully valid form with no valorPago', () => {
+  it('passes for a fully valid form', () => {
     const errors = validatePrecatorioForm(basePrecatorioForm())
-    expect(hasErrors(errors)).toBe(false)
-  })
-
-  it('passes for a fully valid form with a valorPago', () => {
-    const errors = validatePrecatorioForm(basePrecatorioForm({ valorPago: '500,00' }))
     expect(hasErrors(errors)).toBe(false)
   })
 
@@ -102,25 +109,34 @@ describe('validatePrecatorioForm', () => {
     expect(validatePrecatorioForm(basePrecatorioForm({ cedente: '   ' })).cedente).toBeDefined()
   })
 
-  it('requires a positive valorOriginal', () => {
-    expect(validatePrecatorioForm(basePrecatorioForm({ valorOriginal: '' })).valorOriginal).toBeDefined()
-    expect(validatePrecatorioForm(basePrecatorioForm({ valorOriginal: '0' })).valorOriginal).toBeDefined()
-    expect(validatePrecatorioForm(basePrecatorioForm({ valorOriginal: '-5' })).valorOriginal).toBeDefined()
-  })
-
   it('requires a positive valorAtualizado', () => {
     expect(validatePrecatorioForm(basePrecatorioForm({ valorAtualizado: '' })).valorAtualizado).toBeDefined()
     expect(validatePrecatorioForm(basePrecatorioForm({ valorAtualizado: '0' })).valorAtualizado).toBeDefined()
     expect(validatePrecatorioForm(basePrecatorioForm({ valorAtualizado: '-5' })).valorAtualizado).toBeDefined()
   })
 
-  it('allows a blank valorPago (not yet paid)', () => {
-    expect(validatePrecatorioForm(basePrecatorioForm({ valorPago: '' })).valorPago).toBeUndefined()
-    expect(validatePrecatorioForm(basePrecatorioForm({ valorPago: '   ' })).valorPago).toBeUndefined()
+  it('requires valorPago (não pode ficar em branco)', () => {
+    expect(validatePrecatorioForm(basePrecatorioForm({ valorPago: '' })).valorPago).toBeDefined()
   })
 
-  it('rejects a non-positive valorPago when provided', () => {
-    expect(validatePrecatorioForm(basePrecatorioForm({ valorPago: '0' })).valorPago).toBeDefined()
+  it('rejects valorPago negativo', () => {
     expect(validatePrecatorioForm(basePrecatorioForm({ valorPago: '-5' })).valorPago).toBeDefined()
+  })
+
+  it('allows a blank valorVendido (venda ainda não registrada)', () => {
+    expect(validatePrecatorioForm(basePrecatorioForm({ valorVendido: '' })).valorVendido).toBeUndefined()
+  })
+
+  it('rejects valorVendido negativo quando informado', () => {
+    expect(validatePrecatorioForm(basePrecatorioForm({ valorVendido: '-5' })).valorVendido).toBeDefined()
+  })
+
+  it('requires origem', () => {
+    expect(validatePrecatorioForm(basePrecatorioForm({ origem: '' })).origem).toBeDefined()
+  })
+
+  it('requires origemOutro quando origem é OUTRO', () => {
+    expect(validatePrecatorioForm(basePrecatorioForm({ origem: 'OUTRO', origemOutro: '' })).origemOutro).toBeDefined()
+    expect(validatePrecatorioForm(basePrecatorioForm({ origem: 'OUTRO', origemOutro: 'Tribunal X' })).origemOutro).toBeUndefined()
   })
 })

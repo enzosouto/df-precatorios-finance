@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { formatMoney } from '../lib/money';
 import { parseDateOnly } from '../lib/dateOnly';
 import { getDefaultMonthRange } from '../lib/dateRange';
+import { getCotaIgual, getSocioBreakdown, type SocioBreakdown, type SocioTotals } from './socioBreakdown';
 
 export interface DashboardSummary {
   caixaTotal: string;
@@ -10,6 +11,8 @@ export interface DashboardSummary {
   despesasPeriodo: string;
   saldoPeriodo: string;
   hasAnyTransactions: boolean;
+  porSocio: SocioBreakdown[];
+  cotaIgualPeriodo: SocioTotals;
 }
 
 async function sumByType(
@@ -34,16 +37,16 @@ export async function getDashboardSummary(
   endDate: string | undefined
 ): Promise<DashboardSummary> {
   const range = startDate && endDate ? { startDate, endDate } : getDefaultMonthRange();
+  const periodDateFilter = {
+    gte: parseDateOnly(range.startDate),
+    lte: parseDateOnly(range.endDate),
+  };
 
-  const [allTime, period, anyTransaction] = await Promise.all([
+  const [allTime, period, anyTransaction, porSocio] = await Promise.all([
     sumByType(userId),
-    sumByType(userId, {
-      transactionDate: {
-        gte: parseDateOnly(range.startDate),
-        lte: parseDateOnly(range.endDate),
-      },
-    }),
+    sumByType(userId, { transactionDate: periodDateFilter }),
     prisma.transaction.findFirst({ where: { userId, deletedAt: null }, select: { id: true } }),
+    getSocioBreakdown(userId, periodDateFilter),
   ]);
 
   const caixaTotal = allTime.receitas.minus(allTime.despesas);
@@ -55,5 +58,7 @@ export async function getDashboardSummary(
     despesasPeriodo: formatMoney(period.despesas),
     saldoPeriodo: formatMoney(saldoPeriodo),
     hasAnyTransactions: anyTransaction !== null,
+    porSocio,
+    cotaIgualPeriodo: getCotaIgual(period.receitas, period.despesas),
   };
 }

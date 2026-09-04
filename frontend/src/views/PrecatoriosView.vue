@@ -1,24 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { Plus } from 'lucide-vue-next'
 import { fetchPrecatorios, deletePrecatorio } from '@/api/precatorios'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import PrecatorioModal from '@/components/PrecatorioModal.vue'
+import PrecatorioGroupTable from '@/components/PrecatorioGroupTable.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import { formatCurrency, formatSignedAmount } from '@/utils/format'
-import type { Precatorio } from '@/types'
+import type { OrigemPrecatorio, Precatorio } from '@/types'
+
+const ORIGEM_LABELS: Record<OrigemPrecatorio, string> = { GDF: 'GDF', FEDERAL: 'Federal', OUTRO: 'Outros' }
+const FETCH_ALL_PAGE_SIZE = 1000
 
 const toast = useToast()
 
 const items = ref<Precatorio[]>([])
-const total = ref(0)
 const loading = ref(false)
-const page = ref(1)
-const pageSize = 20
-
 const searchTerm = ref('')
-
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
 const modalOpen = ref(false)
 const editingPrecatorio = ref<Precatorio | null>(null)
@@ -27,16 +25,48 @@ const confirmOpen = ref(false)
 const deletingPrecatorio = ref<Precatorio | null>(null)
 const deleting = ref(false)
 
+interface CompradorGroup {
+  comprador: string
+  porOrigem: Partial<Record<OrigemPrecatorio, Precatorio[]>>
+}
+
+const SEM_COMPRADOR = 'Sem comprador'
+
+const groups = computed<CompradorGroup[]>(() => {
+  const byComprador = new Map<string, Precatorio[]>()
+  for (const item of items.value) {
+    const key = item.comprador?.trim() || SEM_COMPRADOR
+    const list = byComprador.get(key) ?? []
+    list.push(item)
+    byComprador.set(key, list)
+  }
+
+  return Array.from(byComprador.entries())
+    .sort(([a], [b]) => {
+      if (a === SEM_COMPRADOR) return 1
+      if (b === SEM_COMPRADOR) return -1
+      return a.localeCompare(b, 'pt-BR')
+    })
+    .map(([comprador, compradorItems]) => {
+      const porOrigem: Partial<Record<OrigemPrecatorio, Precatorio[]>> = {}
+      for (const item of compradorItems) {
+        const list = porOrigem[item.origem] ?? []
+        list.push(item)
+        porOrigem[item.origem] = list
+      }
+      return { comprador, porOrigem }
+    })
+})
+
 async function loadPrecatorios(): Promise<void> {
   loading.value = true
   try {
     const response = await fetchPrecatorios({
       search: searchTerm.value.trim() || undefined,
-      page: page.value,
-      pageSize,
+      page: 1,
+      pageSize: FETCH_ALL_PAGE_SIZE,
     })
     items.value = response.items
-    total.value = response.total
   } catch (error) {
     toast.error(extractErrorMessage(error, 'Não foi possível carregar os precatórios.'))
   } finally {
@@ -47,13 +77,11 @@ async function loadPrecatorios(): Promise<void> {
 let searchDebounce: ReturnType<typeof setTimeout> | undefined
 
 function debouncedReload(): void {
-  page.value = 1
   if (searchDebounce) clearTimeout(searchDebounce)
   searchDebounce = setTimeout(() => void loadPrecatorios(), 350)
 }
 
 watch(searchTerm, debouncedReload)
-watch(page, () => void loadPrecatorios())
 
 onMounted(() => {
   void loadPrecatorios()
@@ -94,11 +122,6 @@ async function confirmDelete(): Promise<void> {
     deleting.value = false
   }
 }
-
-function goToPage(target: number): void {
-  if (target < 1 || target > totalPages.value) return
-  page.value = target
-}
 </script>
 
 <template>
@@ -110,7 +133,7 @@ function goToPage(target: number): void {
         class="hidden min-h-[44px] items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-base font-semibold text-white hover:bg-brand-700 sm:flex"
         @click="openCreate"
       >
-        <span aria-hidden="true">+</span> Novo Precatório
+        <Plus class="h-5 w-5" aria-hidden="true" /> Novo Precatório
       </button>
     </div>
 
@@ -133,86 +156,31 @@ function goToPage(target: number): void {
       <p class="mt-1 text-base text-slate-500">Ajuste a busca ou cadastre um novo precatório.</p>
     </div>
 
-    <div v-else class="flex flex-col gap-3">
-      <div v-for="precatorio in items" :key="precatorio.id" class="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm">
-        <div class="flex items-start justify-between gap-3">
-          <span class="text-base font-semibold text-slate-900">{{ precatorio.cedente }}</span>
-          <div class="flex shrink-0 gap-2">
-            <button
-              type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-slate-500 hover:bg-slate-100"
-              aria-label="Editar precatório"
-              @click="openEdit(precatorio)"
-            >
-              ✏️
-            </button>
-            <button
-              type="button"
-              class="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-despesa-600 hover:bg-despesa-50"
-              aria-label="Excluir precatório"
-              @click="askDelete(precatorio)"
-            >
-              🗑️
-            </button>
-          </div>
-        </div>
+    <div v-else class="flex flex-col gap-8">
+      <div v-for="group in groups" :key="group.comprador" class="flex flex-col gap-4 rounded-xl border border-slate-200 p-4">
+        <h2 class="text-xl font-bold text-slate-900">{{ group.comprador }}</h2>
 
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div class="flex flex-col gap-0.5">
-            <span class="text-xs font-medium uppercase tracking-wide text-slate-500">Valor Original</span>
-            <span class="text-base font-semibold text-slate-900">{{ formatCurrency(precatorio.valorOriginal) }}</span>
-          </div>
-          <div class="flex flex-col gap-0.5">
-            <span class="text-xs font-medium uppercase tracking-wide text-slate-500">Valor Atualizado</span>
-            <span class="text-base font-semibold text-slate-900">{{ formatCurrency(precatorio.valorAtualizado) }}</span>
-          </div>
-          <div class="flex flex-col gap-0.5">
-            <span class="text-xs font-medium uppercase tracking-wide text-slate-500">Diferença</span>
-            <span class="text-base font-semibold text-slate-500">{{ formatSignedAmount(precatorio.diferenca) }}</span>
-          </div>
-          <div class="flex flex-col gap-0.5">
-            <span class="text-xs font-medium uppercase tracking-wide text-slate-500">Valor Pago</span>
-            <span class="text-base font-semibold text-slate-900">
-              {{ precatorio.valorPago ? formatCurrency(precatorio.valorPago) : '—' }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between rounded-xl bg-white p-3 shadow-sm">
-        <p class="text-sm text-slate-500">Total: {{ total }} registro(s)</p>
-        <div class="flex items-center gap-2">
-          <button
-            type="button"
-            class="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-lg disabled:opacity-40"
-            :disabled="page <= 1"
-            aria-label="Página anterior"
-            @click="goToPage(page - 1)"
-          >
-            ‹
-          </button>
-          <span class="text-sm font-medium text-slate-600">{{ page }} / {{ totalPages }}</span>
-          <button
-            type="button"
-            class="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-lg disabled:opacity-40"
-            :disabled="page >= totalPages"
-            aria-label="Próxima página"
-            @click="goToPage(page + 1)"
-          >
-            ›
-          </button>
-        </div>
+        <PrecatorioGroupTable
+          v-for="origem in (['GDF', 'FEDERAL', 'OUTRO'] as OrigemPrecatorio[])"
+          v-show="group.porOrigem[origem]?.length"
+          :key="origem"
+          :title="ORIGEM_LABELS[origem]"
+          :items="group.porOrigem[origem] ?? []"
+          :show-descricao-outro="origem === 'OUTRO'"
+          @edit="openEdit"
+          @delete="askDelete"
+        />
       </div>
     </div>
 
     <!-- Mobile floating action button -->
     <button
       type="button"
-      class="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-3xl text-white shadow-lg sm:hidden"
+      class="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg sm:hidden"
       aria-label="Novo Precatório"
       @click="openCreate"
     >
-      +
+      <Plus class="h-7 w-7" aria-hidden="true" />
     </button>
 
     <PrecatorioModal :open="modalOpen" :precatorio="editingPrecatorio" @close="modalOpen = false" @saved="handleSaved" />

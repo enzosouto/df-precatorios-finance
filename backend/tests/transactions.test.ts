@@ -22,7 +22,7 @@ describe('Transações', () => {
     await cleanupDatabase();
   });
 
-  it('cria uma movimentação do tipo RECEITA com sucesso', async () => {
+  it('cria uma movimentação do tipo RECEITA com sucesso, atribuída a múltiplos sócios', async () => {
     const { user, cookie } = await setupUserWithCookie();
     const category = await createTestCategory(user.id, 'Honorários', 'RECEITA');
 
@@ -33,6 +33,7 @@ describe('Transações', () => {
       clientName: 'Cliente A',
       categoryId: category.id,
       transactionDate: '2026-08-15',
+      socios: ['CHIQUINHO', 'FILIPI'],
     });
 
     expect(response.status).toBe(201);
@@ -42,6 +43,7 @@ describe('Transações', () => {
       description: 'Honorários processo 123',
       clientName: 'Cliente A',
       transactionDate: '2026-08-15',
+      socios: ['CHIQUINHO', 'FILIPI'],
       category: { id: category.id, name: 'Honorários' },
     });
   });
@@ -57,6 +59,7 @@ describe('Transações', () => {
       clientName: 'Fornecedor X',
       categoryId: category.id,
       transactionDate: '2026-08-05',
+      socios: ['FILIPI'],
     });
 
     expect(response.status).toBe(201);
@@ -64,41 +67,38 @@ describe('Transações', () => {
     expect(response.body.type).toBe('DESPESA');
   });
 
-  it('rejeita RECEITA sem clientName', async () => {
+  it('aceita RECEITA e DESPESA sem clientName (cliente é opcional)', async () => {
     const { user, cookie } = await setupUserWithCookie();
-    const category = await createTestCategory(user.id, 'Honorários', 'RECEITA');
+    const receitaCategory = await createTestCategory(user.id, 'Honorários', 'RECEITA');
+    const despesaCategory = await createTestCategory(user.id, 'Aluguel', 'DESPESA');
 
-    const response = await request(app).post('/transactions').set('Cookie', cookie).send({
+    const receita = await request(app).post('/transactions').set('Cookie', cookie).send({
       type: 'RECEITA',
       amount: '1500.00',
       description: 'Honorários sem cliente',
-      categoryId: category.id,
+      categoryId: receitaCategory.id,
       transactionDate: '2026-08-15',
+      socios: ['CHIQUINHO'],
     });
+    expect(receita.status).toBe(201);
+    expect(receita.body.clientName).toBeNull();
 
-    expect(response.status).toBe(400);
-    expect(response.body.error).toBeDefined();
-  });
-
-  it('rejeita DESPESA sem clientName', async () => {
-    const { user, cookie } = await setupUserWithCookie();
-    const category = await createTestCategory(user.id, 'Aluguel', 'DESPESA');
-
-    const response = await request(app).post('/transactions').set('Cookie', cookie).send({
+    const despesa = await request(app).post('/transactions').set('Cookie', cookie).send({
       type: 'DESPESA',
       amount: '900.00',
       description: 'Aluguel sem cliente',
-      categoryId: category.id,
+      categoryId: despesaCategory.id,
       transactionDate: '2026-08-05',
+      socios: ['CHIQUINHO'],
     });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error).toBeDefined();
+    expect(despesa.status).toBe(201);
+    expect(despesa.body.clientName).toBeNull();
   });
 
-  it('rejeita categoria incompatível com o tipo da movimentação', async () => {
+  it('rejeita categoria incompatível, lista de sócios vazia, sócio inválido e sócio repetido', async () => {
     const { user, cookie } = await setupUserWithCookie();
     const despesaCategory = await createTestCategory(user.id, 'Aluguel', 'DESPESA');
+    const receitaCategory = await createTestCategory(user.id, 'Honorários', 'RECEITA');
 
     const response = await request(app).post('/transactions').set('Cookie', cookie).send({
       type: 'RECEITA',
@@ -107,10 +107,47 @@ describe('Transações', () => {
       clientName: 'Cliente Y',
       categoryId: despesaCategory.id,
       transactionDate: '2026-08-10',
+      socios: ['CHIQUINHO'],
     });
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: 'Categoria não compatível com o tipo de movimentação.' });
+
+    const vazio = await request(app).post('/transactions').set('Cookie', cookie).send({
+      type: 'RECEITA',
+      amount: '500.00',
+      description: 'Sem sócio',
+      clientName: 'Cliente Y',
+      categoryId: receitaCategory.id,
+      transactionDate: '2026-08-10',
+      socios: [],
+    });
+    expect(vazio.status).toBe(400);
+    expect(vazio.body.error).toBeDefined();
+
+    const invalido = await request(app).post('/transactions').set('Cookie', cookie).send({
+      type: 'RECEITA',
+      amount: '500.00',
+      description: 'Sócio inválido',
+      clientName: 'Cliente Y',
+      categoryId: receitaCategory.id,
+      transactionDate: '2026-08-10',
+      socios: ['JOAO'],
+    });
+    expect(invalido.status).toBe(400);
+    expect(invalido.body.error).toBeDefined();
+
+    const repetido = await request(app).post('/transactions').set('Cookie', cookie).send({
+      type: 'RECEITA',
+      amount: '500.00',
+      description: 'Sócio repetido',
+      clientName: 'Cliente Y',
+      categoryId: receitaCategory.id,
+      transactionDate: '2026-08-10',
+      socios: ['CHIQUINHO', 'CHIQUINHO'],
+    });
+    expect(repetido.status).toBe(400);
+    expect(repetido.body.error).toBeDefined();
   });
 
   it('rejeita valor zero ou negativo', async () => {
@@ -124,6 +161,7 @@ describe('Transações', () => {
       clientName: 'Cliente Z',
       categoryId: category.id,
       transactionDate: '2026-08-10',
+      socios: ['LOMAR'],
     });
     expect(zeroResponse.status).toBe(400);
 
@@ -134,6 +172,7 @@ describe('Transações', () => {
       clientName: 'Cliente Z',
       categoryId: category.id,
       transactionDate: '2026-08-10',
+      socios: ['LOMAR'],
     });
     expect(negativeResponse.status).toBe(400);
   });
@@ -149,6 +188,7 @@ describe('Transações', () => {
       clientName: 'Empresa Alfa Ltda',
       categoryId: category.id,
       transactionDate: '2026-08-01',
+      socios: ['CHIQUINHO'],
     });
 
     await request(app).post('/transactions').set('Cookie', cookie).send({
@@ -158,6 +198,7 @@ describe('Transações', () => {
       clientName: 'Empresa Beta Ltda',
       categoryId: category.id,
       transactionDate: '2026-08-02',
+      socios: ['FILIPI'],
     });
 
     const byClientName = await request(app)
@@ -180,6 +221,30 @@ describe('Transações', () => {
     expect(bySearchOnClientName.status).toBe(200);
     expect(bySearchOnClientName.body.total).toBe(1);
     expect(bySearchOnClientName.body.items[0].clientName).toBe('Empresa Beta Ltda');
+
+    const bySocio = await request(app).get('/transactions?socio=FILIPI').set('Cookie', cookie);
+    expect(bySocio.status).toBe(200);
+    expect(bySocio.body.total).toBe(1);
+    expect(bySocio.body.items[0].clientName).toBe('Empresa Beta Ltda');
+    expect(bySocio.body.totals).toEqual({ receitas: '200.00', despesas: '0.00', saldo: '200.00' });
+
+    // Despesa marcada para os 3 sócios: o filtro por sócio deve mostrar só a parte dele (900 ÷ 3 = 300), não o valor cheio.
+    const despesaCategory = await createTestCategory(user.id, 'Aluguel', 'DESPESA');
+    await request(app).post('/transactions').set('Cookie', cookie).send({
+      type: 'DESPESA',
+      amount: '900.00',
+      description: 'Despesa dividida',
+      clientName: 'Fornecedor Compartilhado',
+      categoryId: despesaCategory.id,
+      transactionDate: '2026-08-03',
+      socios: ['CHIQUINHO', 'FILIPI', 'LOMAR'],
+    });
+
+    const porChiquinho = await request(app).get('/transactions?socio=CHIQUINHO').set('Cookie', cookie);
+    expect(porChiquinho.body.totals).toEqual({ receitas: '100.00', despesas: '300.00', saldo: '-200.00' });
+
+    const totalGeral = await request(app).get('/transactions').set('Cookie', cookie);
+    expect(totalGeral.body.totals).toEqual({ receitas: '300.00', despesas: '900.00', saldo: '-600.00' });
   });
 
   it('exclusão lógica: some da listagem mas continua existindo no banco com deletedAt preenchido', async () => {
@@ -193,6 +258,7 @@ describe('Transações', () => {
       clientName: 'Cliente Delete',
       categoryId: category.id,
       transactionDate: '2026-08-20',
+      socios: ['LOMAR'],
     });
 
     const id = created.body.id;

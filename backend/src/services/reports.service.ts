@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { formatMoney } from '../lib/money';
 import { formatDateOnly, parseDateOnly } from '../lib/dateOnly';
 import { getDefaultMonthRange, getMonthsInRange } from '../lib/dateRange';
+import { getCotaIgual, getSocioBreakdown, type SocioBreakdown, type SocioTotals } from './socioBreakdown';
 
 export interface CategoryTotal {
   categoryName: string;
@@ -22,6 +23,8 @@ export interface ReportsResult {
   topDespesaCategorias: CategoryTotal[];
   topReceitaCategorias: CategoryTotal[];
   monthly: MonthlyTotal[];
+  porSocio: SocioBreakdown[];
+  cotaIgual: SocioTotals;
 }
 
 const TOP_CATEGORIES_LIMIT = 5;
@@ -37,15 +40,18 @@ export async function getReports(
     lte: parseDateOnly(range.endDate),
   };
 
-  const transactions = await prisma.transaction.findMany({
-    where: { userId, deletedAt: null, transactionDate: dateFilter },
-    select: {
-      type: true,
-      amount: true,
-      transactionDate: true,
-      category: { select: { id: true, name: true } },
-    },
-  });
+  const [transactions, porSocio] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { userId, deletedAt: null, transactionDate: dateFilter },
+      select: {
+        type: true,
+        amount: true,
+        transactionDate: true,
+        category: { select: { id: true, name: true } },
+      },
+    }),
+    getSocioBreakdown(userId, dateFilter),
+  ]);
 
   let receitas = new Decimal(0);
   let despesas = new Decimal(0);
@@ -101,5 +107,7 @@ export async function getReports(
     topDespesaCategorias: toSortedCategoryTotals(despesaByCategory),
     topReceitaCategorias: toSortedCategoryTotals(receitaByCategory),
     monthly,
+    porSocio,
+    cotaIgual: getCotaIgual(receitas, despesas),
   };
 }

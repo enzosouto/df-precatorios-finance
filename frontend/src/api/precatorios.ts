@@ -1,17 +1,27 @@
 import { apiClient } from './client'
-import type { Precatorio, PrecatorioListResponse } from '@/types'
+import type { DocumentoTipo, OrigemPrecatorio, Precatorio, PrecatorioListResponse } from '@/types'
 
 export interface PrecatorioQuery {
   search?: string
+  origem?: OrigemPrecatorio
+  comprador?: string
   page?: number
   pageSize?: number
 }
 
 export interface PrecatorioInput {
   cedente: string
-  valorOriginal: string
   valorAtualizado: string
-  valorPago?: string | null
+  valorVendido?: string | null
+  valorPago: string
+  comissoes?: string[]
+  tipoDocumento?: DocumentoTipo | null
+  numeroDocumento?: string | null
+  livro?: string | null
+  folha?: string | null
+  origem: OrigemPrecatorio
+  origemOutro?: string | null
+  comprador?: string | null
 }
 
 export async function fetchPrecatorios(query: PrecatorioQuery): Promise<PrecatorioListResponse> {

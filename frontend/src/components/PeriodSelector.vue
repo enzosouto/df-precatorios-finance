@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import type { PeriodMode } from '@/types'
+import { formatDate, toIsoDate } from '@/utils/format'
+import DatePicker from '@/components/DatePicker.vue'
 
 const props = defineProps<{
   mode: PeriodMode
   label: string
   canNavigate: boolean
+  anchor: Date
   customStart: string
   customEnd: string
 }>()
@@ -13,6 +17,7 @@ const emit = defineEmits<{
   (e: 'update:mode', value: PeriodMode): void
   (e: 'prev'): void
   (e: 'next'): void
+  (e: 'jump', value: string): void
   (e: 'update:customStart', value: string): void
   (e: 'update:customEnd', value: string): void
 }>()
@@ -28,12 +33,45 @@ function selectMode(value: PeriodMode): void {
   emit('update:mode', value)
 }
 
-function onCustomStart(event: Event): void {
-  emit('update:customStart', (event.target as HTMLInputElement).value)
+// Center-label calendar popover (dia / mes / ano modes).
+const labelPickerOpen = ref(false)
+
+const anchorIso = computed(() => toIsoDate(props.anchor))
+
+const labelPickerGranularity = computed<'day' | 'month' | 'year'>(() => {
+  if (props.mode === 'mes') return 'month'
+  if (props.mode === 'ano') return 'year'
+  return 'day'
+})
+
+function toggleLabelPicker(): void {
+  labelPickerOpen.value = !labelPickerOpen.value
 }
 
-function onCustomEnd(event: Event): void {
-  emit('update:customEnd', (event.target as HTMLInputElement).value)
+function onLabelPicked(iso: string): void {
+  emit('jump', iso)
+}
+
+// Custom-range calendar popovers (período personalizado mode).
+const startPickerOpen = ref(false)
+const endPickerOpen = ref(false)
+
+function toggleStartPicker(): void {
+  startPickerOpen.value = !startPickerOpen.value
+  endPickerOpen.value = false
+}
+
+function toggleEndPicker(): void {
+  endPickerOpen.value = !endPickerOpen.value
+  startPickerOpen.value = false
+}
+
+function onCustomStartPicked(iso: string): void {
+  emit('update:customStart', iso)
+}
+
+function onCustomEndPicked(iso: string): void {
+  emit('update:customEnd', iso)
 }
 </script>
 
@@ -67,7 +105,23 @@ function onCustomEnd(event: Event): void {
       >
         ‹
       </button>
-      <span class="flex-1 text-center text-lg font-bold capitalize text-slate-800">{{ props.label }}</span>
+      <div class="relative flex-1">
+        <button
+          type="button"
+          class="w-full rounded-lg py-1 text-center text-lg font-bold capitalize text-slate-800 hover:bg-brand-50 hover:text-brand-700"
+          @click="toggleLabelPicker"
+        >
+          {{ props.label }}
+        </button>
+        <DatePicker
+          class="left-1/2 -translate-x-1/2"
+          :model-value="anchorIso"
+          :granularity="labelPickerGranularity"
+          :open="labelPickerOpen"
+          @update:model-value="onLabelPicked"
+          @update:open="labelPickerOpen = $event"
+        />
+      </div>
       <button
         type="button"
         class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-2xl font-bold text-brand-700 hover:bg-brand-50"
@@ -79,24 +133,40 @@ function onCustomEnd(event: Event): void {
     </div>
 
     <div v-else class="flex flex-wrap items-end gap-4 rounded-xl bg-white p-4 shadow-sm">
-      <label class="flex flex-col gap-1 text-sm font-medium text-slate-600">
-        De
-        <input
-          type="date"
-          class="min-h-[44px] rounded-lg border border-slate-300 px-3 py-2 text-base"
-          :value="props.customStart"
-          @change="onCustomStart"
+      <div class="relative flex flex-col gap-1">
+        <span class="text-sm font-medium text-slate-600">De</span>
+        <button
+          type="button"
+          class="min-h-[44px] rounded-lg border border-slate-300 px-3 py-2 text-left text-base text-slate-800 hover:border-brand-400"
+          @click="toggleStartPicker"
+        >
+          {{ formatDate(props.customStart) }}
+        </button>
+        <DatePicker
+          :model-value="props.customStart"
+          granularity="day"
+          :open="startPickerOpen"
+          @update:model-value="onCustomStartPicked"
+          @update:open="startPickerOpen = $event"
         />
-      </label>
-      <label class="flex flex-col gap-1 text-sm font-medium text-slate-600">
-        Até
-        <input
-          type="date"
-          class="min-h-[44px] rounded-lg border border-slate-300 px-3 py-2 text-base"
-          :value="props.customEnd"
-          @change="onCustomEnd"
+      </div>
+      <div class="relative flex flex-col gap-1">
+        <span class="text-sm font-medium text-slate-600">Até</span>
+        <button
+          type="button"
+          class="min-h-[44px] rounded-lg border border-slate-300 px-3 py-2 text-left text-base text-slate-800 hover:border-brand-400"
+          @click="toggleEndPicker"
+        >
+          {{ formatDate(props.customEnd) }}
+        </button>
+        <DatePicker
+          :model-value="props.customEnd"
+          granularity="day"
+          :open="endPickerOpen"
+          @update:model-value="onCustomEndPicked"
+          @update:open="endPickerOpen = $event"
         />
-      </label>
+      </div>
     </div>
   </div>
 </template>

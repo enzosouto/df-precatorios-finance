@@ -12,6 +12,23 @@ enum TransactionType {
   DESPESA
 }
 
+enum Socio {
+  CHIQUINHO
+  FILIPI
+  LOMAR
+}
+
+enum DocumentoTipo {
+  PROCURACAO
+  ESCRITURA
+}
+
+enum OrigemPrecatorio {
+  GDF
+  FEDERAL
+  OUTRO
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -51,13 +68,16 @@ model Transaction {
   amount          Decimal          @db.Decimal(14, 2)
   description     String
   clientName      String?          @db.VarChar(200)
+  socios          Socio[]
+  precatorioId    String?          @unique
   transactionDate DateTime         @db.Date
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   deletedAt       DateTime?
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  precatorio Precatorio? @relation(fields: [precatorioId], references: [id], onDelete: Cascade)
 
   @@index([transactionDate])
   @@index([userId])
@@ -70,18 +90,26 @@ model Transaction {
 }
 
 model Precatorio {
-  id              String    @id @default(uuid())
-  userId          String
-  cedente         String
-  valorOriginal   Decimal   @db.Decimal(14, 2)
-  valorAtualizado Decimal   @db.Decimal(14, 2)
-  diferenca       Decimal   @db.Decimal(14, 2)
-  valorPago       Decimal?  @db.Decimal(14, 2)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  deletedAt       DateTime?
+  id                String    @id @default(uuid())
+  userId            String
+  cedente           String
+  valorAtualizado   Decimal   @db.Decimal(14, 2)
+  valorVendido      Decimal?  @db.Decimal(14, 2)
+  valorPago         Decimal   @db.Decimal(14, 2)
+  comissoes         Decimal[] @db.Decimal(14, 2)
+  tipoDocumento     DocumentoTipo?
+  numeroDocumento   String?   @db.VarChar(100)
+  livro             String?   @db.VarChar(20)
+  folha             String?   @db.VarChar(20)
+  origem            OrigemPrecatorio
+  origemOutro       String?   @db.VarChar(200)
+  comprador         String?   @db.VarChar(200)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transacaoReceita Transaction?
 
   @@index([userId])
   @@index([deletedAt])

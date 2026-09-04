@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { Home, Wallet, FileText, BarChart3, Settings, LogOut, Menu } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 
@@ -11,11 +12,11 @@ const toast = useToast()
 const drawerOpen = ref(false)
 
 const navItems = [
-  { to: '/', icon: '🏠', label: 'Dashboard' },
-  { to: '/movimentacoes', icon: '💰', label: 'Movimentações' },
-  { to: '/precatorios', icon: '📄', label: 'Precatórios' },
-  { to: '/relatorios', icon: '📊', label: 'Relatórios' },
-  { to: '/configuracoes', icon: '⚙️', label: 'Configurações' },
+  { to: '/', icon: Wallet, label: 'Movimentações' },
+  { to: '/dashboard', icon: Home, label: 'Dashboard' },
+  { to: '/precatorios', icon: FileText, label: 'Precatórios' },
+  { to: '/relatorios', icon: BarChart3, label: 'Relatórios' },
+  { to: '/configuracoes', icon: Settings, label: 'Configurações' },
 ]
 
 async function handleLogout(): Promise<void> {
@@ -48,7 +49,7 @@ function closeDrawer(): void {
           class="flex min-h-[44px] items-center gap-3 rounded-lg px-4 py-3 text-lg font-medium text-slate-700 hover:bg-brand-50"
           active-class="bg-brand-100 text-brand-800"
         >
-          <span class="text-xl" aria-hidden="true">{{ item.icon }}</span>
+          <component :is="item.icon" class="h-6 w-6" aria-hidden="true" />
           <span>{{ item.label }}</span>
         </RouterLink>
       </nav>
@@ -58,7 +59,7 @@ function closeDrawer(): void {
           class="flex min-h-[44px] w-full items-center gap-3 rounded-lg px-4 py-3 text-lg font-medium text-slate-700 hover:bg-despesa-50"
           @click="handleLogout"
         >
-          <span class="text-xl" aria-hidden="true">🚪</span>
+          <LogOut class="h-6 w-6" aria-hidden="true" />
           <span>Sair</span>
         </button>
       </div>
@@ -68,11 +69,11 @@ function closeDrawer(): void {
     <header class="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
       <button
         type="button"
-        class="flex h-11 w-11 items-center justify-center rounded-lg text-2xl text-slate-700 hover:bg-slate-100"
+        class="flex h-11 w-11 items-center justify-center rounded-lg text-slate-700 hover:bg-slate-100"
         aria-label="Abrir menu"
         @click="drawerOpen = true"
       >
-        ☰
+        <Menu class="h-6 w-6" aria-hidden="true" />
       </button>
       <div class="flex items-center gap-2">
         <img src="/logo.png" alt="DF Precatórios Finance" class="h-8 w-8 max-w-full object-contain" />
@@ -111,7 +112,7 @@ function closeDrawer(): void {
             active-class="bg-brand-100 text-brand-800"
             @click="closeDrawer"
           >
-            <span class="text-xl" aria-hidden="true">{{ item.icon }}</span>
+            <component :is="item.icon" class="h-6 w-6" aria-hidden="true" />
             <span>{{ item.label }}</span>
           </RouterLink>
         </nav>
@@ -121,7 +122,7 @@ function closeDrawer(): void {
             class="flex min-h-[44px] w-full items-center gap-3 rounded-lg px-4 py-3 text-lg font-medium text-slate-700 hover:bg-despesa-50"
             @click="handleLogout"
           >
-            <span class="text-xl" aria-hidden="true">🚪</span>
+            <LogOut class="h-6 w-6" aria-hidden="true" />
             <span>Sair</span>
           </button>
         </div>
@@ -144,7 +145,7 @@ function closeDrawer(): void {
         class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-xs font-medium text-slate-600"
         active-class="text-brand-700"
       >
-        <span class="text-xl" aria-hidden="true">{{ item.icon }}</span>
+        <component :is="item.icon" class="h-5 w-5" aria-hidden="true" />
         <span>{{ item.label }}</span>
       </RouterLink>
     </nav>

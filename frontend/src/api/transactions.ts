@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { Transaction, TransactionListResponse, TransactionType } from '@/types'
+import type { Socio, Transaction, TransactionListResponse, TransactionType } from '@/types'
 
 export interface TransactionQuery {
   startDate?: string
@@ -8,6 +8,7 @@ export interface TransactionQuery {
   categoryId?: string
   search?: string
   clientName?: string
+  socio?: Socio
   page?: number
   pageSize?: number
 }
@@ -19,6 +20,7 @@ export interface TransactionInput {
   clientName: string
   categoryId: string
   transactionDate: string
+  socios: Socio[]
 }
 
 export async function fetchTransactions(query: TransactionQuery): Promise<TransactionListResponse> {

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { Plus } from 'lucide-vue-next'
 import { fetchCategories, createCategory } from '@/api/categories'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import { formatAmountForInput, normalizeAmountInput, todayIso } from '@/utils/format'
 import { validateTransactionForm, hasErrors, type TransactionFormErrors } from '@/utils/validation'
-import type { Category, Transaction, TransactionType } from '@/types'
+import type { Category, Socio, Transaction, TransactionType } from '@/types'
+
+const SOCIOS: Socio[] = ['CHIQUINHO', 'FILIPI', 'LOMAR']
 
 const props = defineProps<{
   open: boolean
@@ -29,6 +32,7 @@ const form = reactive({
   clienteNome: '',
   categoriaId: '',
   data: todayIso(),
+  socios: [] as Socio[],
 })
 
 const errors = ref<TransactionFormErrors>({})
@@ -48,6 +52,7 @@ function resetForm(): void {
     form.clienteNome = props.transaction.clientName ?? ''
     form.categoriaId = props.transaction.category.id
     form.data = props.transaction.transactionDate
+    form.socios = [...props.transaction.socios]
   } else {
     form.tipo = props.defaultType ?? 'DESPESA'
     form.valor = ''
@@ -55,6 +60,7 @@ function resetForm(): void {
     form.clienteNome = ''
     form.categoriaId = ''
     form.data = todayIso()
+    form.socios = []
   }
   errors.value = {}
   showNewCategory.value = false
@@ -126,6 +132,14 @@ function onAmountBlur(): void {
   }
 }
 
+function toggleSocio(socio: Socio, checked: boolean): void {
+  if (checked) {
+    if (!form.socios.includes(socio)) form.socios.push(socio)
+  } else {
+    form.socios = form.socios.filter((s) => s !== socio)
+  }
+}
+
 async function handleSubmit(): Promise<void> {
   const validationErrors = validateTransactionForm(form)
   errors.value = validationErrors
@@ -140,6 +154,7 @@ async function handleSubmit(): Promise<void> {
       clientName: form.clienteNome.trim(),
       categoryId: form.categoriaId,
       transactionDate: form.data,
+      socios: form.socios,
     }
 
     const { createTransaction, updateTransaction } = await import('@/api/transactions')
@@ -158,6 +173,12 @@ async function handleSubmit(): Promise<void> {
   } finally {
     submitting.value = false
   }
+}
+
+const SOCIO_LABELS: Record<Socio, string> = {
+  CHIQUINHO: 'Chiquinho',
+  FILIPI: 'Filipi',
+  LOMAR: 'Lomar',
 }
 
 function handleClose(): void {
@@ -241,11 +262,11 @@ function handleClose(): void {
           </label>
 
           <label class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-slate-600">Cliente / Empresa</span>
+            <span class="text-sm font-medium text-slate-600">Cliente / Empresa (opcional)</span>
             <input
               v-model="form.clienteNome"
               type="text"
-              placeholder="Ex: João da Silva / Empresa XYZ Ltda"
+              placeholder="Ex: João da Silva / Empresa XYZ Ltda (opcional)"
               class="min-h-[44px] rounded-lg border px-3 py-2 text-base"
               :class="errors.clienteNome ? 'border-despesa-500' : 'border-slate-300'"
             />
@@ -268,12 +289,12 @@ function handleClose(): void {
               </select>
               <button
                 type="button"
-                class="min-h-[44px] shrink-0 rounded-lg border border-slate-300 px-3 text-lg font-semibold text-slate-600 hover:bg-slate-50"
+                class="flex min-h-[44px] shrink-0 items-center justify-center rounded-lg border border-slate-300 px-3 font-semibold text-slate-600 hover:bg-slate-50"
                 :disabled="!form.tipo"
                 aria-label="Nova categoria"
                 @click="showNewCategory = !showNewCategory"
               >
-                +
+                <Plus class="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
             <span v-if="errors.categoriaId" class="text-sm font-medium text-despesa-600">{{ errors.categoriaId }}</span>
@@ -307,6 +328,23 @@ function handleClose(): void {
             />
             <span v-if="errors.data" class="text-sm font-medium text-despesa-600">{{ errors.data }}</span>
           </label>
+
+          <div class="flex flex-col gap-2">
+            <span class="text-sm font-medium text-slate-600">Sócio(s) responsável(is)</span>
+            <p class="text-xs text-slate-500">Marque quem essa movimentação compete — o valor é dividido igualmente entre os marcados.</p>
+            <div class="flex flex-wrap gap-4">
+              <label v-for="socio in SOCIOS" :key="socio" class="flex min-h-[44px] items-center gap-2">
+                <input
+                  type="checkbox"
+                  class="h-5 w-5 rounded border-slate-300"
+                  :checked="form.socios.includes(socio)"
+                  @change="toggleSocio(socio, ($event.target as HTMLInputElement).checked)"
+                />
+                <span class="text-base text-slate-700">{{ SOCIO_LABELS[socio] }}</span>
+              </label>
+            </div>
+            <span v-if="errors.socios" class="text-sm font-medium text-despesa-600">{{ errors.socios }}</span>
+          </div>
 
           <div class="mt-2 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button

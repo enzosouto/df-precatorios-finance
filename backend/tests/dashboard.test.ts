@@ -13,6 +13,7 @@ async function createTransaction(
     transactionDate: string;
     description?: string;
     clientName?: string;
+    socios?: Array<'CHIQUINHO' | 'FILIPI' | 'LOMAR'>;
   }
 ) {
   return request(app)
@@ -21,6 +22,7 @@ async function createTransaction(
     .send({
       description: overrides.description ?? 'Movimentação de teste',
       clientName: overrides.clientName ?? 'Cliente Teste',
+      socios: overrides.socios ?? ['CHIQUINHO'],
       ...overrides,
     });
 }
@@ -56,12 +58,14 @@ describe('Dashboard', () => {
       amount: '2000.00',
       categoryId: receitaCategory.id,
       transactionDate: '2026-08-05',
+      socios: ['CHIQUINHO'],
     });
     await createTransaction(cookie, {
       type: 'DESPESA',
       amount: '500.00',
       categoryId: despesaCategory.id,
       transactionDate: '2026-08-10',
+      socios: ['FILIPI', 'LOMAR'],
     });
 
     const response = await request(app)
@@ -76,6 +80,22 @@ describe('Dashboard', () => {
     expect(response.body.despesasPeriodo).toBe('500.00');
     expect(response.body.saldoPeriodo).toBe('1500.00');
     expect(response.body.hasAnyTransactions).toBe(true);
+
+    // porSocio: só considera o período filtrado (agosto/2026).
+    // A despesa de 500 foi atribuída a FILIPI + LOMAR, então cada um recebe metade (250).
+    expect(response.body.porSocio).toEqual(
+      expect.arrayContaining([
+        { socio: 'CHIQUINHO', receitas: '2000.00', despesas: '0.00', saldo: '2000.00' },
+        { socio: 'FILIPI', receitas: '0.00', despesas: '250.00', saldo: '-250.00' },
+        { socio: 'LOMAR', receitas: '0.00', despesas: '250.00', saldo: '-250.00' },
+      ])
+    );
+    // cotaIgualPeriodo = totais do período (2000 receita, 500 despesa, 1500 saldo) ÷ 3
+    expect(response.body.cotaIgualPeriodo).toEqual({
+      receitas: '666.67',
+      despesas: '166.67',
+      saldo: '500.00',
+    });
 
     // Mudar o período não deve afetar o caixaTotal
     const otherPeriod = await request(app)

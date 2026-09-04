@@ -68,6 +68,11 @@ export function usePeriod(initialMode: PeriodMode = 'mes') {
     anchor.value = new Date()
   }
 
+  /** Jumps the anchor directly to an arbitrary date (used by the calendar date-picker). */
+  function setAnchor(date: Date): void {
+    anchor.value = date
+  }
+
   return {
     mode,
     anchor,
@@ -78,5 +83,6 @@ export function usePeriod(initialMode: PeriodMode = 'mes') {
     canNavigate,
     step,
     goToToday,
+    setAnchor,
   }
 }

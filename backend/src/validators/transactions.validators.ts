@@ -16,27 +16,27 @@ export const dateOnlySchema = z
 /** Accepts a trimmed string or null/undefined. Emptiness/requiredness by type is checked separately. */
 const clientNameFieldSchema = z.union([z.string().trim(), z.null()]).optional();
 
-export const createTransactionSchema = z
-  .object({
-    type: transactionTypeSchema,
-    amount: amountSchema,
-    description: z
-      .string({ required_error: 'Descrição é obrigatória.' })
-      .trim()
-      .min(1, 'Descrição é obrigatória.'),
-    categoryId: z.string({ required_error: 'Categoria é obrigatória.' }).min(1, 'Categoria é obrigatória.'),
-    transactionDate: dateOnlySchema,
-    clientName: clientNameFieldSchema,
-  })
-  .superRefine((data, ctx) => {
-    if (!data.clientName || data.clientName.trim().length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Informe o cliente/empresa.',
-        path: ['clientName'],
-      });
-    }
-  });
+export const socioSchema = z.enum(['CHIQUINHO', 'FILIPI', 'LOMAR'], {
+  invalid_type_error: 'Sócio inválido.',
+});
+
+export const sociosSchema = z
+  .array(socioSchema, { required_error: 'Selecione ao menos um sócio.' })
+  .min(1, 'Selecione ao menos um sócio.')
+  .refine((socios) => new Set(socios).size === socios.length, 'Sócios repetidos não são permitidos.');
+
+export const createTransactionSchema = z.object({
+  type: transactionTypeSchema,
+  amount: amountSchema,
+  description: z
+    .string({ required_error: 'Descrição é obrigatória.' })
+    .trim()
+    .min(1, 'Descrição é obrigatória.'),
+  categoryId: z.string({ required_error: 'Categoria é obrigatória.' }).min(1, 'Categoria é obrigatória.'),
+  transactionDate: dateOnlySchema,
+  clientName: clientNameFieldSchema,
+  socios: sociosSchema,
+});
 
 export const updateTransactionSchema = z
   .object({
@@ -46,6 +46,7 @@ export const updateTransactionSchema = z
     categoryId: z.string().min(1, 'Categoria é obrigatória.'),
     transactionDate: dateOnlySchema,
     clientName: clientNameFieldSchema,
+    socios: sociosSchema,
   })
   .partial()
   .refine((data) => Object.keys(data).length > 0, {
@@ -59,6 +60,7 @@ export const listTransactionsQuerySchema = z.object({
   categoryId: z.string().min(1).optional(),
   search: z.string().optional(),
   clientName: z.string().optional(),
+  socio: socioSchema.optional(),
   page: z.coerce.number().int().positive().optional().default(1),
   pageSize: z.coerce.number().int().positive().max(200).optional().default(20),
 });

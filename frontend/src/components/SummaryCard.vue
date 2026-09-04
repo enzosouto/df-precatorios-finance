@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { Component } from 'vue'
 import { formatCurrency } from '@/utils/format'
 
 const props = defineProps<{
   label: string
   value: string | number
   tone?: 'neutral' | 'receita' | 'despesa'
-  icon?: string
+  icon?: Component
 }>()
 
 const toneClasses = computed(() => {
@@ -24,7 +25,7 @@ const toneClasses = computed(() => {
 <template>
   <div class="flex flex-col gap-2 rounded-2xl border-2 p-5 shadow-sm" :class="toneClasses">
     <div class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide opacity-80">
-      <span v-if="icon" aria-hidden="true">{{ icon }}</span>
+      <component :is="icon" v-if="icon" class="h-4 w-4" aria-hidden="true" />
       <span>{{ label }}</span>
     </div>
     <p class="text-2xl font-bold sm:text-3xl">{{ formatCurrency(value) }}</p>

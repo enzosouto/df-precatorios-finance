@@ -23,11 +23,13 @@ describe('Relatórios', () => {
       amount: string;
       categoryId: string;
       transactionDate: string;
+      socios?: Array<'CHIQUINHO' | 'FILIPI' | 'LOMAR'>;
     }) =>
       request(app)
         .post('/transactions')
         .set('Cookie', cookie)
         .send({
+          socios: ['CHIQUINHO'],
           ...data,
           description: 'Movimentação de relatório',
           clientName: 'Cliente Relatório',
@@ -67,6 +69,21 @@ describe('Relatórios', () => {
     // Top categorias de receita (desc)
     expect(response.body.topReceitaCategorias[0]).toEqual({ categoryName: 'Honorários', total: '3000.00' });
     expect(response.body.topReceitaCategorias[1]).toEqual({ categoryName: 'Comissão', total: '500.00' });
+
+    // Todos os lançamentos foram atribuídos a CHIQUINHO
+    expect(response.body.porSocio).toEqual(
+      expect.arrayContaining([
+        { socio: 'CHIQUINHO', receitas: '3500.00', despesas: '850.00', saldo: '2650.00' },
+        { socio: 'FILIPI', receitas: '0.00', despesas: '0.00', saldo: '0.00' },
+        { socio: 'LOMAR', receitas: '0.00', despesas: '0.00', saldo: '0.00' },
+      ])
+    );
+    // cotaIgual = totais do período (3500 receita, 850 despesa, 2650 saldo) ÷ 3
+    expect(response.body.cotaIgual).toEqual({
+      receitas: '1166.67',
+      despesas: '283.33',
+      saldo: '883.33',
+    });
   });
 
   it('inclui meses sem lançamentos no agrupamento mensal (com totais zerados)', async () => {
@@ -84,6 +101,7 @@ describe('Relatórios', () => {
         clientName: 'Cliente Único',
         categoryId: category.id,
         transactionDate: '2026-06-01',
+        socios: ['CHIQUINHO'],
       });
 
     const response = await request(app)

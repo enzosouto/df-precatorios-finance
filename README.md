@@ -125,7 +125,9 @@ Nunca commitar `.env`. Use sempre `.env.example` como referência.
 ### 2. Render (backend)
 
 1. Criar um **Web Service** apontando para este repositório, `Root Directory: backend`.
-2. Build command: `npm install && npm run build && npx prisma migrate deploy`
+2. Build command: `npm install --include=dev && npm run build && npx prisma migrate deploy`
+   (`--include=dev` é necessário porque o TypeScript/Prisma CLI são
+   devDependencies e o Render roda o build com `NODE_ENV=production`)
 3. Start command: `npm start`
 4. Health check path: `/health`
 5. Variáveis de ambiente: as mesmas de `backend/.env.example`, com o

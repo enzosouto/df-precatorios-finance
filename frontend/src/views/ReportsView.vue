@@ -10,14 +10,21 @@ import {
   LinearScale,
 } from 'chart.js'
 import { Bar } from 'vue-chartjs'
+import { TrendingUp, TrendingDown, Scale } from 'lucide-vue-next'
 import { fetchReports } from '@/api/reports'
 import { extractErrorMessage } from '@/api/client'
 import { usePeriod } from '@/composables/usePeriod'
 import { useToast } from '@/composables/useToast'
 import PeriodSelector from '@/components/PeriodSelector.vue'
 import SummaryCard from '@/components/SummaryCard.vue'
-import { formatCurrency, monthKeyToShortLabel, parseAmount } from '@/utils/format'
-import type { ReportsResponse } from '@/types'
+import { formatCurrency, monthKeyToShortLabel, parseAmount, parseIsoDate } from '@/utils/format'
+import type { ReportsResponse, Socio } from '@/types'
+
+const SOCIO_LABELS: Record<Socio, string> = {
+  CHIQUINHO: 'Chiquinho',
+  FILIPI: 'Filipi',
+  LOMAR: 'Lomar',
+}
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
 
@@ -89,11 +96,13 @@ const hasMonthlyData = computed(() => (report.value?.monthly?.length ?? 0) > 0)
       :mode="period.mode.value"
       :label="period.label.value"
       :can-navigate="period.canNavigate.value"
+      :anchor="period.anchor.value"
       :custom-start="period.customStart.value"
       :custom-end="period.customEnd.value"
       @update:mode="period.mode.value = $event"
       @prev="period.step(-1)"
       @next="period.step(1)"
+      @jump="period.setAnchor(parseIsoDate($event))"
       @update:custom-start="period.customStart.value = $event"
       @update:custom-end="period.customEnd.value = $event"
     />
@@ -102,9 +111,9 @@ const hasMonthlyData = computed(() => (report.value?.monthly?.length ?? 0) > 0)
 
     <template v-else-if="report">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <SummaryCard label="Receitas" :value="report.receitas" tone="receita" icon="⬆️" />
-        <SummaryCard label="Despesas" :value="report.despesas" tone="despesa" icon="⬇️" />
-        <SummaryCard label="Saldo" :value="report.saldo" tone="neutral" icon="⚖️" />
+        <SummaryCard label="Receitas" :value="report.receitas" tone="receita" :icon="TrendingUp" />
+        <SummaryCard label="Despesas" :value="report.despesas" tone="despesa" :icon="TrendingDown" />
+        <SummaryCard label="Saldo" :value="report.saldo" tone="neutral" :icon="Scale" />
       </div>
 
       <div class="rounded-xl bg-white p-4 shadow-sm">
@@ -145,6 +154,36 @@ const hasMonthlyData = computed(() => (report.value?.monthly?.length ?? 0) > 0)
           </ul>
           <p v-else class="text-base text-slate-500">Nenhuma receita no período.</p>
         </div>
+      </div>
+
+      <div class="overflow-x-auto rounded-xl bg-white shadow-sm">
+        <h2 class="p-4 pb-0 text-lg font-bold text-slate-800">Divisão por sócio (período)</h2>
+        <table class="w-full min-w-[500px] table-auto border-collapse text-sm">
+          <thead>
+            <tr class="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th class="px-4 py-3">Sócio</th>
+              <th class="px-4 py-3 text-right">Receitas</th>
+              <th class="px-4 py-3 text-right">Despesas</th>
+              <th class="px-4 py-3 text-right">Saldo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in report.porSocio" :key="item.socio" class="border-b border-slate-100">
+              <td class="px-4 py-3 font-semibold text-slate-900">{{ SOCIO_LABELS[item.socio] }}</td>
+              <td class="px-4 py-3 text-right text-receita-700">{{ formatCurrency(item.receitas) }}</td>
+              <td class="px-4 py-3 text-right text-despesa-700">{{ formatCurrency(item.despesas) }}</td>
+              <td class="px-4 py-3 text-right font-semibold text-slate-900">{{ formatCurrency(item.saldo) }}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="bg-slate-50 font-semibold text-slate-700">
+              <td class="px-4 py-3">Cota igual (total ÷ 3)</td>
+              <td class="px-4 py-3 text-right">{{ formatCurrency(report.cotaIgual.receitas) }}</td>
+              <td class="px-4 py-3 text-right">{{ formatCurrency(report.cotaIgual.despesas) }}</td>
+              <td class="px-4 py-3 text-right">{{ formatCurrency(report.cotaIgual.saldo) }}</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     </template>
   </div>

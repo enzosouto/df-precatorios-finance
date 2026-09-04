@@ -1,5 +1,7 @@
 export type TransactionType = 'RECEITA' | 'DESPESA'
 
+export type Socio = 'CHIQUINHO' | 'FILIPI' | 'LOMAR'
+
 export interface User {
   id: string
   name: string
@@ -23,15 +25,33 @@ export interface Transaction {
   amount: string
   description: string
   clientName: string | null
+  socios: Socio[]
   category: TransactionCategory
   transactionDate: string
   createdAt: string
   updatedAt: string
 }
 
+export interface TransactionTotals {
+  receitas: string
+  despesas: string
+  saldo: string
+}
+
 export interface TransactionListResponse {
   items: Transaction[]
   total: number
+  totals: TransactionTotals
+}
+
+export interface SocioTotals {
+  receitas: string
+  despesas: string
+  saldo: string
+}
+
+export interface SocioBreakdown extends SocioTotals {
+  socio: Socio
 }
 
 export interface DashboardSummary {
@@ -40,6 +60,8 @@ export interface DashboardSummary {
   despesasPeriodo: string
   saldoPeriodo: string
   hasAnyTransactions: boolean
+  porSocio: SocioBreakdown[]
+  cotaIgualPeriodo: SocioTotals
 }
 
 export interface TopCategoria {
@@ -60,22 +82,46 @@ export interface ReportsResponse {
   topDespesaCategorias: TopCategoria[]
   topReceitaCategorias: TopCategoria[]
   monthly: MonthlyReportEntry[]
+  porSocio: SocioBreakdown[]
+  cotaIgual: SocioTotals
 }
+
+export type DocumentoTipo = 'PROCURACAO' | 'ESCRITURA'
+export type OrigemPrecatorio = 'GDF' | 'FEDERAL' | 'OUTRO'
 
 export interface Precatorio {
   id: string
   cedente: string
-  valorOriginal: string
   valorAtualizado: string
-  diferenca: string
-  valorPago: string | null
+  valorVendido: string | null
+  valorPago: string
+  comissoes: string[]
+  percentualPago: string
+  percentualVendido: string | null
+  lucro: string | null
+  tipoDocumento: DocumentoTipo | null
+  numeroDocumento: string | null
+  livro: string | null
+  folha: string | null
+  origem: OrigemPrecatorio
+  origemOutro: string | null
+  comprador: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface PrecatorioTotals {
+  valorAtualizado: string
+  valorPago: string
+  valorVendido: string
+  lucro: string
 }
 
 export interface PrecatorioListResponse {
   items: Precatorio[]
   total: number
+  totals: PrecatorioTotals
+  porSocio: PrecatorioTotals
 }
 
 export interface ApiErrorBody {

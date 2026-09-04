@@ -12,13 +12,13 @@ const router = createRouter({
     },
     {
       path: '/',
-      name: 'dashboard',
-      component: () => import('@/views/DashboardView.vue'),
-    },
-    {
-      path: '/movimentacoes',
       name: 'movimentacoes',
       component: () => import('@/views/TransactionsView.vue'),
+    },
+    {
+      path: '/dashboard',
+      name: 'dashboard',
+      component: () => import('@/views/DashboardView.vue'),
     },
     {
       path: '/precatorios',
@@ -51,7 +51,7 @@ router.beforeEach(async (to) => {
 
   if (to.meta.public) {
     if (auth.isAuthenticated && to.name === 'login') {
-      return { name: 'dashboard' }
+      return { name: 'movimentacoes' }
     }
     return true
   }
